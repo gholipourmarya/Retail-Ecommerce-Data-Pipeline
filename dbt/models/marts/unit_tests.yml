@@ -1,0 +1,18 @@
+version: 2
+
+unit_tests:
+  - name: product_sales_groups_and_sums_orders
+    model: product_sales
+    overrides:
+      macros:
+        is_incremental: false
+    given:
+      - input: ref('stg_orders')
+        rows:
+          - {source_row: 1, product_id: P1, quantity: 2, revenue: 31.00, low_stock: false}
+          - {source_row: 2, product_id: P1, quantity: 3, revenue: 46.50, low_stock: true}
+          - {source_row: 3, product_id: P2, quantity: 1, revenue: 80.00, low_stock: true}
+    expect:
+      rows:
+        - {product_id: P1, order_lines: 2, units_sold: 5, revenue: 77.50, low_stock_lines: 1, last_source_row: 2}
+        - {product_id: P2, order_lines: 1, units_sold: 1, revenue: 80.00, low_stock_lines: 1, last_source_row: 3}

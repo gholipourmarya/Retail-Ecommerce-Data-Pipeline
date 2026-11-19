@@ -1,0 +1,56 @@
+{
+  "title": "Retail Sales",
+  "uid": "retail-sales",
+  "schemaVersion": 41,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "CSV orders by product",
+      "type": "table",
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "retail-postgres"},
+      "gridPos": {"x": 0, "y": 0, "w": 24, "h": 9},
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT product_id, order_lines, units_sold, revenue, low_stock_lines FROM reporting.product_sales ORDER BY revenue DESC, product_id"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Kafka orders by product",
+      "type": "table",
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "retail-postgres"},
+      "gridPos": {"x": 0, "y": 9, "w": 24, "h": 9},
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT product_id, events, revenue FROM reporting.stream_product_sales ORDER BY revenue DESC, product_id"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Pipeline data quality and processing time",
+      "type": "table",
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "retail-postgres"},
+      "gridPos": {"x": 0, "y": 18, "w": 24, "h": 10},
+      "targets": [
+        {
+          "refId": "A",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT finished_at AS time, pipeline, batch_id, rows_seen, rows_rejected, rows_written, rows_skipped, round((100 * error_rate)::numeric, 2) AS error_pct, round(duration_seconds::numeric, 3) AS duration_seconds, alert FROM reporting.pipeline_quality WHERE $__timeFilter(finished_at) ORDER BY finished_at DESC, run_id DESC LIMIT 100"
+        }
+      ]
+    }
+  ]
+}

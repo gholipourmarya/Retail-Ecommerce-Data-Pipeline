@@ -1,0 +1,16 @@
+version: 2
+sources:
+  - name: retail_raw
+    schema: raw
+    tables:
+      - name: orders
+models:
+  - name: stg_orders
+    description: One row per accepted CSV record.
+    columns:
+      - name: source_row
+        data_tests: [unique, not_null]
+      - name: order_id
+        data_tests: [not_null]
+      - name: product_id
+        data_tests: [not_null]

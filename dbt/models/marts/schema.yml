@@ -1,0 +1,9 @@
+version: 2
+models:
+  - name: product_sales
+    description: Sales and low-stock counts by product for the accumulated CSV orders.
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+      - name: revenue
+        data_tests: [not_null]

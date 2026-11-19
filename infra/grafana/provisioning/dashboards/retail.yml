@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: retail
+    type: file
+    options:
+      path: /var/lib/retail-dashboards

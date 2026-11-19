@@ -1,0 +1,5 @@
+order_id,product_id,quantity,unit_price,stock
+O1,P1,2,15.50,40
+O2,P2,1,80,12
+O3,P1,3,15.50,40
+O4,P3,-1,22,9

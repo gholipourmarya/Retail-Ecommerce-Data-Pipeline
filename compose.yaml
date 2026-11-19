@@ -1,0 +1,119 @@
+name: retail-ecommerce
+
+x-warehouse-env: &warehouse-env
+  PGHOST: warehouse
+  PGPORT: "5432"
+  PGDATABASE: retail
+  PGUSER: retail
+  PGPASSWORD: retail_demo
+  DQ_ERROR_RATE_THRESHOLD: "${DQ_ERROR_RATE_THRESHOLD:-0}"
+
+services:
+  warehouse:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: retail
+      POSTGRES_USER: retail
+      POSTGRES_PASSWORD: retail_demo
+    volumes:
+      - warehouse-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-retail.sql:ro
+      - ./infra/postgres/upgrade.sql:/docker-entrypoint-initdb.d/02-retail-upgrade.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U retail -d retail"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  airflow:
+    build:
+      context: .
+      dockerfile: infra/airflow/Dockerfile
+    command: standalone
+    environment:
+      <<: *warehouse-env
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__API__PORT: "8080"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - airflow-data:/opt/airflow
+      - ./dags:/opt/airflow/dags:ro
+      - ./data:/opt/retail/data:ro
+      - ./src:/opt/retail/src:ro
+      - ./dbt:/opt/retail/dbt:ro
+    depends_on:
+      warehouse:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:12.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: retail_demo
+      GRAFANA_DB_PASSWORD: grafana_demo
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/retail-dashboards:ro
+    depends_on:
+      warehouse:
+        condition: service_healthy
+
+  kafka:
+    image: apache/kafka:4.0.0
+    profiles: [streaming]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      CLUSTER_ID: 1MywVNkqTsqhjHj0ZkN2Lg
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-ec", ": > /dev/tcp/127.0.0.1/9092"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:4.0.0
+    profiles: [streaming]
+    entrypoint: ["/opt/kafka/bin/kafka-topics.sh"]
+    command: ["--bootstrap-server", "kafka:9092", "--create", "--if-not-exists", "--topic", "retail-orders", "--partitions", "2", "--replication-factor", "1"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  spark:
+    build:
+      context: .
+      dockerfile: infra/spark/Dockerfile
+    profiles: [streaming]
+    environment:
+      <<: *warehouse-env
+    volumes:
+      - spark-checkpoints:/checkpoints
+    depends_on:
+      warehouse:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+
+volumes:
+  warehouse-data:
+  airflow-data:
+  grafana-data:
+  kafka-data:
+  spark-checkpoints:
